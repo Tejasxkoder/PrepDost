@@ -154,12 +154,12 @@ export const getInterviewResponse = async (
         ...(formattedMessages.length > 0
           ? formattedMessages
           : [
-              {
-                role: "user" as const,
-                content:
-                  "Please start the interview.",
-              },
-            ]),
+            {
+              role: "user" as const,
+              content:
+                "Please start the interview.",
+            },
+          ]),
       ],
 
       max_tokens: 1024,
@@ -173,8 +173,17 @@ export const getInterviewResponse = async (
     throw new Error("Empty AI response")
   }
 
+  let cleanedContent = content.trim()
+
+  if (cleanedContent.startsWith("```json")) {
+    cleanedContent = cleanedContent
+      .replace(/^```json/, "")
+      .replace(/```$/, "")
+      .trim()
+  }
+
   try {
-    const parsed = JSON.parse(content)
+    const parsed = JSON.parse(cleanedContent)
 
     return {
       message: parsed.message || content,
@@ -223,9 +232,16 @@ export const generateFeedback = async (
   if (!content) {
     throw new Error("Empty AI response")
   }
+  let cleanedContent = content.trim()
 
+  if (cleanedContent.startsWith("```json")) {
+    cleanedContent = cleanedContent
+      .replace(/^```json/, "")
+      .replace(/```$/, "")
+      .trim()
+  }
   try {
-    return JSON.parse(content)
+    return JSON.parse(cleanedContent)
   } catch {
     throw new Error(
       "Failed to parse feedback from AI"
