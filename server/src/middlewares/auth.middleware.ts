@@ -6,6 +6,7 @@ import { sendError } from "../utils/response.utils.js"
 export interface AuthRequest extends Request {
   user?: JWTPayload & {
     _id: string
+     id: string
   }
 }
 

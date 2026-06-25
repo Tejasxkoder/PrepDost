@@ -2,6 +2,7 @@ import express from "express"
 import type { Express, Request, Response } from "express"
 import cors from "cors"
 import authRouter from "./routes/auth.route.js"
+import interviewRouter from "./routes/interview.route.js"
 
 const app: Express = express()
 
@@ -22,6 +23,8 @@ app.get("/api/v1/health", (_req: Request, res: Response) => {
 })
 
 app.use("/api/v1/auth", authRouter)
+
+app.use("/api/v1/interviews", interviewRouter)
 
 app.use((req: Request, res: Response) => {
   res.status(404).json({ success: false, message: "Route not found" })
