@@ -1,0 +1,183 @@
+import { DeepgramError } from "@deepgram/sdk";
+import type { ListenV1Response, ListenV1ResponseResultsChannelsItem } from "@deepgram/sdk";
+import { deepgram } from "../config/deepgram.js";
+import {
+  DEFAULT_STT_MODEL,
+  DEFAULT_VOICE,
+  type STT_MODELS,
+  type VOICE_MODELS,
+  type TranscribeResult,
+  type TranscriptWord,
+} from "../types/voice.types.js";
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_RETRIES = 2;
+const DEFAULT_RETRY_DELAY_MS = 500;
+
+interface RetryOptions {
+  retries?: number;
+  delayMs?: number;
+}
+
+interface TranscribeOptions {
+  model?: (typeof STT_MODELS)[number];
+  language?: string;
+}
+
+interface TTSOptions {
+  voice?: (typeof VOICE_MODELS)[number];
+  encoding?: "linear16" | "mp3" | "opus" | "flac" | "aac" | "mulaw" | "alaw";
+}
+
+export interface HealthCheckResult {
+  success: boolean;
+  provider: "deepgram";
+  status: string;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(fn: () => Promise<T>, opts: RetryOptions = {}): Promise<T> {
+  const retries = opts.retries ?? DEFAULT_RETRIES;
+  const delayMs = opts.delayMs ?? DEFAULT_RETRY_DELAY_MS;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+
+      if (err instanceof DeepgramError) {
+        const status = err.statusCode;
+        if (typeof status === "number" && status >= 400 && status < 500 && status !== 429) {
+          throw err;
+        }
+      }
+
+      if (attempt < retries) {
+        await sleep(delayMs * (attempt + 1));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
+function isSyncListenResponse(response: unknown): response is ListenV1Response {
+  return (
+    typeof response === "object" &&
+    response !== null &&
+    "results" in response &&
+    "metadata" in response
+  );
+}
+
+export async function healthCheck(): Promise<HealthCheckResult> {
+  try {
+    await withTimeout(deepgram.manage.v1.projects.list(), 10_000, "Deepgram health check");
+    return { success: true, provider: "deepgram", status: "operational" };
+  } catch (error) {
+    return {
+      success: false,
+      provider: "deepgram",
+      status: error instanceof Error ? error.message : "unreachable",
+    };
+  }
+}
+
+export async function transcribeAudio(
+  audioBuffer: Buffer,
+  options: TranscribeOptions = {}
+): Promise<TranscribeResult> {
+  const model = options.model ?? DEFAULT_STT_MODEL;
+
+  try {
+    const response = await withRetry(() =>
+      withTimeout(
+        deepgram.listen.v1.media.transcribeFile(audioBuffer, {
+          model,
+          smart_format: true,
+          punctuate: true,
+          ...(options.language ? { language: options.language } : {}),
+        }),
+        DEFAULT_TIMEOUT_MS,
+        "Deepgram transcription"
+      )
+    );
+
+    if (!isSyncListenResponse(response)) {
+      throw new Error("Deepgram returned an async accepted response, expected inline results");
+    }
+
+    const alternative: ListenV1ResponseResultsChannelsItem.Alternatives.Item | undefined =
+      response.results.channels[0]?.alternatives?.[0];
+
+    if (!alternative) {
+      throw new Error("Deepgram returned no transcription alternatives");
+    }
+
+    const words: TranscriptWord[] = (alternative.words ?? []).map((w) => ({
+      word: w.word ?? "",
+      start: w.start ?? 0,
+      end: w.end ?? 0,
+      confidence: w.confidence ?? 0,
+    }));
+
+    return {
+      transcript: alternative.transcript ?? "",
+      confidence: alternative.confidence ?? 0,
+      duration: response.metadata.duration,
+      words,
+    };
+  } catch (error) {
+    if (error instanceof DeepgramError) {
+      throw new Error(`Deepgram transcription failed: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+export async function textToSpeech(text: string, options: TTSOptions = {}): Promise<Buffer> {
+  const voice = options.voice ?? DEFAULT_VOICE;
+
+  try {
+    const response = await withRetry(() =>
+      withTimeout(
+        deepgram.speak.v1.audio.generate({
+          text,
+          model: voice,
+          encoding: options.encoding ?? "linear16",
+          container: "wav",
+        }),
+        DEFAULT_TIMEOUT_MS,
+        "Deepgram text-to-speech"
+      )
+    );
+
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    if (error instanceof DeepgramError) {
+      throw new Error(`Deepgram text-to-speech failed: ${error.message}`);
+    }
+    throw error;
+  }
+}

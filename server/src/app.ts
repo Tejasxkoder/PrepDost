@@ -3,6 +3,9 @@ import type { Express, Request, Response } from "express"
 import cors from "cors"
 import authRouter from "./routes/auth.route.js"
 import interviewRouter from "./routes/interview.route.js"
+import problemRouter from "./routes/problem.route.js"
+import submissionRouter from "./routes/submission.route.js"
+import userRouter from "./routes/user.route.js"
 
 const app: Express = express()
 
@@ -25,6 +28,12 @@ app.get("/api/v1/health", (_req: Request, res: Response) => {
 app.use("/api/v1/auth", authRouter)
 
 app.use("/api/v1/interviews", interviewRouter)
+
+app.use("/api/v1/problems", problemRouter)     
+
+app.use("/api/v1/submissions", submissionRouter)
+
+app.use("/api/v1/users", userRouter) 
 
 app.use((req: Request, res: Response) => {
   res.status(404).json({ success: false, message: "Route not found" })

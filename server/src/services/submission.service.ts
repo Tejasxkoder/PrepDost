@@ -3,6 +3,7 @@ import { ProblemModel } from "../models/problem.model.js"
 import { runCodeAgainstTests } from "./judge.service.js"
 import { reviewCode } from "./ai.service.js"
 import type { Language } from "../models/submission.model.js"
+import { logActivity } from "./stats.service.js"
 
 export const submitCode = async (
   userId: string,
@@ -69,6 +70,12 @@ export const submitCode = async (
     submission.aiReview = aiReview
     await submission.save()
 
+    await logActivity(userId, allPassed ? "problem_solved" : "problem_attempted", {
+      problemId: problemId,
+      problemTitle: problem.title,
+      difficulty: problem.difficulty,
+      language,
+    })
 
     if (allPassed) {
       const alreadySolved = await SubmissionModel.findOne({

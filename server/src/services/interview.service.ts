@@ -5,6 +5,7 @@ import {
   MAX_INTERVIEW_MESSAGES,
 } from "./ai.service.js"
 import type { InterviewType, Difficulty } from "../models/interview.model.js"
+import { logActivity } from "./stats.service.js"
 
 interface CreateInterviewInput {
   userId: string
@@ -37,6 +38,11 @@ export const createInterview = async (input: CreateInterviewInput) => {
   interview.totalMessages = 1
   await interview.save()
 
+  await logActivity(input.userId, "interview_started", {
+    interviewId: interview._id.toString(),
+    interviewType: input.type,
+    company: input.company,
+  })
   return {
     interviewId: interview._id,
     message: aiResponse.message,
@@ -44,6 +50,7 @@ export const createInterview = async (input: CreateInterviewInput) => {
     company: interview.company,
     difficulty: interview.difficulty,
   }
+
 }
 
 export const sendMessage = async (
@@ -104,6 +111,14 @@ export const sendMessage = async (
   }
 
   await interview.save()
+  if (isComplete) {
+    await logActivity(userId, "interview_completed", {
+      interviewId,
+      interviewType: interview.type,
+      company: interview.company,
+      score: feedback?.overallScore,
+    })
+  }
 
   return {
     message: aiResponse.message,
@@ -115,7 +130,7 @@ export const sendMessage = async (
 export const getUserInterviews = async (userId: string) => {
   return InterviewModel.find({ user: userId })
     .sort({ createdAt: -1 })
-    .select("-messages") 
+    .select("-messages")
 }
 
 export const getInterviewById = async (

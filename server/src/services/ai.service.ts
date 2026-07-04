@@ -248,3 +248,70 @@ export const generateFeedback = async (
     )
   }
 }
+export const reviewCode = async (
+  problemDescription: string,
+  code: string,
+  language: string,
+  testResults: any[]
+): Promise<any> => {
+  const passedCount = testResults.filter((r) => r.passed).length
+
+  const prompt = `
+Review this ${language} solution.
+
+Problem:
+${problemDescription}
+
+Code:
+${code}
+
+Test Results:
+${passedCount}/${testResults.length} test cases passed.
+
+Respond ONLY with valid JSON (no markdown, no explanation):
+
+{
+  "score": 0,
+  "timeComplexity": "O(?)",
+  "spaceComplexity": "O(?)",
+  "feedback": "2-3 sentence overall feedback",
+  "improvements": [
+    "improvement 1",
+    "improvement 2"
+  ],
+  "approach": "brief description of the approach used"
+}
+`
+
+  const response = await client.chat.completions.create({
+    model: process.env.CODE_REVIEW_MODEL!,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are an expert competitive programming mentor. Always respond with valid JSON only. Do not wrap the response in markdown.",
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+    temperature: 0.3,
+    max_tokens: 1024,
+    response_format: {
+      type: "json_object",
+    },
+  })
+
+  const content = response.choices[0]?.message?.content
+
+  if (!content) {
+    throw new Error("Empty AI response")
+  }
+
+  try {
+    return JSON.parse(content)
+  } catch {
+    throw new Error("Failed to parse AI review")
+  }
+}
