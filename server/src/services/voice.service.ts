@@ -1,130 +1,76 @@
-
-import { deepgram } from "../config/env.js"
-
+import { validateAudio, truncateForTTS } from "../utils/audio.utils.js";
+import * as deepgramProvider from "../providers/deepgram.provider.js";
+import type { HealthCheckResult } from "../providers/deepgram.provider.js";
 import {
+  STT_MODELS,
+  STT_MODEL_OPTIONS,
   DEFAULT_STT_MODEL,
+  VOICE_MODELS,
+  VOICE_OPTIONS,
   DEFAULT_VOICE,
-  type STTModel,
-  type VoiceModel,
+  type SttModelId,
+  type SttModelOption,
+  type VoiceId,
+  type VoiceOption,
   type TranscribeResult,
-} from "../types/voice.types.js"
+  type UploadedAudioFile,
+} from "../types/voice.types.js";
 
-import {
-  truncateForTTS,
-  estimateCharacters,
-} from "../utils/audio.utils.js"
-
-const MAX_TTS_CHARACTERS = 2000
-
-const DEFAULT_LANGUAGE = "en-IN"
-
-const DEFAULT_ENCODING = "linear16"
-
-const DEFAULT_CONTAINER = "wav"
-
-const DEFAULT_TIMEOUT = 60
-
-export const checkDeepgramHealth = async () => {
-  try {
-    return {
-      success: true,
-      provider: "deepgram",
-      status: "connected",
-    }
-  } catch {
-    return {
-      success: false,
-      provider: "deepgram",
-      status: "offline",
-    }
-  }
+export async function checkVoiceProviderHealth(): Promise<HealthCheckResult> {
+  return deepgramProvider.healthCheck();
 }
-const sleep = (ms: number) =>
-  new Promise((resolve) => setTimeout(resolve, ms))
 
-const retry = async <T>(
-  operation: () => Promise<T>,
-  retries = 3
-): Promise<T> => {
-  let lastError: unknown
+export function getAvailableSttModels(): readonly SttModelOption[] {
+  return STT_MODEL_OPTIONS;
+}
 
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      return await operation()
-    } catch (error) {
-      lastError = error
+export function getAvailableVoices(): readonly VoiceOption[] {
+  return VOICE_OPTIONS;
+}
 
-      if (attempt < retries) {
-        await sleep(500 * attempt)
-      }
-    }
+function resolveSttModel(model?: string): SttModelId {
+  if (model && (STT_MODELS as readonly string[]).includes(model)) {
+    return model as SttModelId;
+  }
+  return DEFAULT_STT_MODEL;
+}
+
+function resolveVoice(voice?: string): VoiceId {
+  if (voice && (VOICE_MODELS as readonly string[]).includes(voice)) {
+    return voice as VoiceId;
+  }
+  return DEFAULT_VOICE;
+}
+
+export async function transcribeInterviewAnswer(
+  file: UploadedAudioFile,
+  model?: string
+): Promise<TranscribeResult> {
+  const validation = validateAudio(file);
+
+  if (!validation.valid) {
+    throw new Error(validation.reason ?? "Invalid audio file");
   }
 
-  throw lastError
+  const result = await deepgramProvider.transcribeAudio(file.buffer, {
+    model: resolveSttModel(model),
+  });
+
+  if (!result.transcript.trim()) {
+    throw new Error("No speech detected in audio. Please try again.");
+  }
+
+  return result;
 }
 
-export const transcribeAudio = async (
-  audio: Buffer,
-  mimeType = "audio/webm",
-  model: STTModel = DEFAULT_STT_MODEL
-): Promise<TranscribeResult> => {
-  return retry(async () => {
-    try {
-      const response =
-        await deepgram.listen.v1.media.transcribeFile(
-          audio,
-          {
-            model,
-            language: DEFAULT_LANGUAGE,
+export async function generateInterviewSpeech(text: string, voice?: string): Promise<Buffer> {
+  if (!text.trim()) {
+    throw new Error("Text is required for speech generation");
+  }
 
-            punctuate: true,
-            smart_format: true,
+  const safeText = truncateForTTS(text);
 
-            diarize: false,
-            filler_words: false,
-
-            utterances: false,
-
-            mimetype: mimeType,
-
-            timeoutInSeconds: DEFAULT_TIMEOUT,
-          }
-        )
-
-      const alternative =
-        response.results.channels?.[0]?.alternatives?.[0]
-
-      if (!alternative) {
-        throw new Error("No transcript returned")
-      }
-
-      return {
-        transcript: alternative.transcript ?? "",
-
-        confidence: alternative.confidence ?? 0,
-
-        duration: response.metadata?.duration ?? 0,
-
-        words:
-          alternative.words?.map((word) => ({
-            word: word.word,
-            start: word.start,
-            end: word.end,
-            confidence: word.confidence,
-          })) ?? [],
-      }
-    } catch (error) {
-      if (error instanceof DeepgramError) {
-        throw new Error(
-          `Deepgram STT Error: ${error.message}`
-        )
-      }
-
-      throw error
-    }
-  })
+  return deepgramProvider.textToSpeech(safeText, {
+    voice: resolveVoice(voice),
+  });
 }
-const response =
-  await deepgram.listen.v1.media.transcribeFile(...) 
-
-response.body

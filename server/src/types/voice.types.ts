@@ -1,3 +1,5 @@
+// ── Speech-to-Text models ────────────────────────────────────────────────
+
 export const STT_MODELS = [
   "nova-3",
   "nova-2",
@@ -43,6 +45,9 @@ export const STT_MODEL_OPTIONS: readonly SttModelOption[] = [
 ];
 
 export const DEFAULT_STT_MODEL: SttModelId = "nova-3";
+
+// ── Text-to-Speech voices (Deepgram Aura-2, English) ────────────────────
+// Metadata sourced from https://developers.deepgram.com/docs/tts-models
 
 export const VOICE_MODELS = [
   "aura-2-thalia-en",
@@ -170,6 +175,8 @@ export const VOICE_OPTIONS: readonly VoiceOption[] = [
 ];
 
 export const DEFAULT_VOICE: VoiceId = "aura-2-thalia-en";
+
+// ── Shared voice-module types ────────────────────────────────────────────
 
 export interface TranscriptWord {
   word: string;
