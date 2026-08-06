@@ -28,6 +28,7 @@ export function getAvailableVoices(): readonly VoiceOption[] {
   return VOICE_OPTIONS;
 }
 
+/** Falls back to the default model instead of throwing on an unknown/unsupported id. */
 function resolveSttModel(model?: string): SttModelId {
   if (model && (STT_MODELS as readonly string[]).includes(model)) {
     return model as SttModelId;
@@ -35,6 +36,7 @@ function resolveSttModel(model?: string): SttModelId {
   return DEFAULT_STT_MODEL;
 }
 
+/** Falls back to the default voice instead of throwing on an unknown/unsupported id. */
 function resolveVoice(voice?: string): VoiceId {
   if (voice && (VOICE_MODELS as readonly string[]).includes(voice)) {
     return voice as VoiceId;
