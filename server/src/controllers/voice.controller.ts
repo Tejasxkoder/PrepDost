@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as voiceService from "../services/voice.service.js";
+import { logger } from "../utils/logger.js";
 
 export async function healthCheckController(
   _req: Request,
@@ -29,12 +30,17 @@ export async function transcribeController(
 ): Promise<void> {
   try {
     if (!req.file) {
+      logger.warn("api.transcribe", "Rejected: no audio file on request");
       res.status(400).json({ success: false, message: "Audio file is required (field: audio)" });
       return;
     }
 
-    // multer puts non-file text fields on req.body for multipart/form-data requests
     const { model } = req.body as { model?: string };
+    logger.info("api.transcribe", "Incoming transcribe request", {
+      filename: req.file.originalname,
+      bytes: req.file.size,
+      model: model ?? "(default)",
+    });
 
     const result = await voiceService.transcribeInterviewAnswer(
       {
@@ -64,6 +70,8 @@ export async function textToSpeechController(
       res.status(400).json({ success: false, message: "text is required" });
       return;
     }
+
+    logger.info("api.speak", "Incoming TTS request", { chars: text.length, voice: voice ?? "(default)" });
 
     const audioBuffer = await voiceService.generateInterviewSpeech(text, voice);
 

@@ -28,7 +28,6 @@ export function getAvailableVoices(): readonly VoiceOption[] {
   return VOICE_OPTIONS;
 }
 
-/** Falls back to the default model instead of throwing on an unknown/unsupported id. */
 function resolveSttModel(model?: string): SttModelId {
   if (model && (STT_MODELS as readonly string[]).includes(model)) {
     return model as SttModelId;
@@ -36,7 +35,6 @@ function resolveSttModel(model?: string): SttModelId {
   return DEFAULT_STT_MODEL;
 }
 
-/** Falls back to the default voice instead of throwing on an unknown/unsupported id. */
 function resolveVoice(voice?: string): VoiceId {
   if (voice && (VOICE_MODELS as readonly string[]).includes(voice)) {
     return voice as VoiceId;
@@ -49,7 +47,6 @@ export async function transcribeInterviewAnswer(
   model?: string
 ): Promise<TranscribeResult> {
   const validation = validateAudio(file);
-
   if (!validation.valid) {
     throw new Error(validation.reason ?? "Invalid audio file");
   }
@@ -69,10 +66,6 @@ export async function generateInterviewSpeech(text: string, voice?: string): Pro
   if (!text.trim()) {
     throw new Error("Text is required for speech generation");
   }
-
   const safeText = truncateForTTS(text);
-
-  return deepgramProvider.textToSpeech(safeText, {
-    voice: resolveVoice(voice),
-  });
+  return deepgramProvider.textToSpeech(safeText, { voice: resolveVoice(voice) });
 }

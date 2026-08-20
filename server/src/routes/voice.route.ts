@@ -7,7 +7,7 @@ import {
   transcribeController,
   textToSpeechController,
 } from "../controllers/voice.controller.js";
-// import { authenticate } from "../middlewares/auth.middleware.js";
+// import { authenticate } from "../middlewares/auth.middleware.js"; // your existing JWT middleware
 
 const router = Router();
 
