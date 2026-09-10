@@ -6,6 +6,7 @@ import interviewRouter from "./routes/interview.route.js"
 import problemRouter from "./routes/problem.route.js"
 import submissionRouter from "./routes/submission.route.js"
 import userRouter from "./routes/user.route.js"
+import voiceRouter from "./routes/voice.route.js"
 
 const app: Express = express()
 
@@ -34,6 +35,8 @@ app.use("/api/v1/problems", problemRouter)
 app.use("/api/v1/submissions", submissionRouter)
 
 app.use("/api/v1/users", userRouter) 
+
+app.use("/api/v1/voice", voiceRouter)
 
 app.use((req: Request, res: Response) => {
   res.status(404).json({ success: false, message: "Route not found" })
